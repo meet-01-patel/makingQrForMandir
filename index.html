@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mandir QR Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            width: 300px;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 1.5rem;
+        }
+        .input-group {
+            margin-bottom: 1rem;
+            text-align: left;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #666;
+        }
+        input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box; 
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            width: 100%;
+            margin-top: 1rem;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #qr-code {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center; /* Center the QR code locally */
+        }
+        /* Hide the QR code from view, we only need it for PDF generation usually, 
+           but showing it is good for verification. */
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>QR Generator</h1>
+    <div class="input-group">
+        <label for="mandir">Mandir Name</label>
+        <input type="text" id="mandir" placeholder="e.g. Bhavnagar" required>
+    </div>
+    <div class="input-group">
+        <label for="point">Point</label>
+        <input type="text" id="point" placeholder="e.g. A or Attendance" required>
+    </div>
+    <button onclick="generatePDF()">Generate PDF</button>
+
+    <div id="qr-code"></div>
+</div>
+
+<script>
+    async function generatePDF() {
+        const mandir = document.getElementById('mandir').value;
+        const point = document.getElementById('point').value;
+
+        if (!mandir || !point) {
+            alert("Please fill in both fields.");
+            return;
+        }
+
+        const data = {
+            mandir: mandir,
+            point: point
+        };
+
+        const jsonString = JSON.stringify(data);
+
+        // Clear previous QR code
+        const qrContainer = document.getElementById('qr-code');
+        qrContainer.innerHTML = '';
+
+        // Generate QR Code
+        // We use a promise to ensure the QR code is rendered before we try to grab it for the PDF
+        await new Promise((resolve) => {
+            new QRCode(qrContainer, {
+                text: jsonString,
+                width: 200,
+                height: 200,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+            // Give a slight delay for the canvas/img to be generated
+            setTimeout(resolve, 100); 
+        });
+
+        // Get the QR code image data
+        const qrCanvas = qrContainer.querySelector('canvas');
+        let qrDataUrl;
+        
+        if (qrCanvas) {
+            qrDataUrl = qrCanvas.toDataURL("image/png");
+        } else {
+            // Fallback if QRCode.js uses img tag (older browsers)
+            const qrImg = qrContainer.querySelector('img');
+            if (qrImg) {
+                qrDataUrl = qrImg.src;
+            } else {
+                alert("Error generating QR code.");
+                return;
+            }
+        }
+
+        // Initialize jsPDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({
+            orientation: 'p',
+            unit: 'mm',
+            format: 'a4'
+        });
+
+        // Page width (A4 is 210mm wide)
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+
+        // Add Text
+        doc.setFontSize(24);
+        const text = `${mandir} ${point}`;
+        const textWidth = doc.getTextWidth(text);
+        const textX = (pageWidth - textWidth) / 2;
+        const textY = 40; // Top position
+
+        doc.text(text, textX, textY);
+
+        // Add QR Code
+        const qrSize = 100; // 100mm x 100mm
+        const qrX = (pageWidth - qrSize) / 2;
+        const qrY = textY + 20; // Below text
+
+        doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+
+        // Save PDF
+        doc.save(`${mandir}_${point}_QR.pdf`);
+    }
+</script>
+
+</body>
+</html>
